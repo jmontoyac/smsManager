@@ -3,13 +3,17 @@ from pyrebase import pyrebase
 from twilio.rest import Client
 from twilio.twiml.messaging_response import Body, Message, Redirect, MessagingResponse
 from time import sleep
+import Queue
 import config
+
+# Variables definition
+commandQueue = Queue.Queue()
 
 def sendmsgresp(num,msg):
     if (num != ''):
         response = MessagingResponse()
         message = Message(to=num,
-               from_="+12149970342",
+               from_=config.smsGatewayNumber,
                body=msg)
         response.append(message)
         response.redirect('https://demo.twilio.com/welcome/sms/')
@@ -24,7 +28,7 @@ def sendmsg(num,msg):
 
          message = client.messages.create(
                to=n,
-               messaging_service_sid="MG81df10e4450fcde193a378d76e104e28",
+               config.messaging_service_sid,
                body=msg)
 
 
@@ -34,6 +38,11 @@ db = fireb.database()
 def stream_handler(message):
     print('event={m[event]}; path={m[path]}; data={m[data]}'
         .format(m=message))
+
+    # Add command to queue
+
+
+
     if (message["event"] == "put" and message["path"] == "/"):
       for command in message["data"]:
         print('data command: {d}'.format(d=command))
@@ -55,7 +64,7 @@ def stream_handler(message):
         if (comando.endswith("lock")):
            sleep(3)
    
-my_stream =db.child('Commands').stream(stream_handler)
+my_stream = db.child('Commands').stream(stream_handler)
 
 # Run Stream Handler forever
 while True:

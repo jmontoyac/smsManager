@@ -1,6 +1,7 @@
 from flask import Flask, request
 from twilio.twiml.messaging_response import Message, MessagingResponse 
 from pyrebase import pyrebase
+import config
 
 app = Flask(__name__)
  
@@ -34,13 +35,7 @@ def sms():
 def test():
     print('get en sms') 
 
-config = {
-    "apiKey": "AIzaSyCL6M3EcwjxB8rPgkozshT43Y53os0s_2g",
-    "authDomain": "gtasos-e45f6.firebaseapp.com",
-    "databaseURL": "https://gtasos-e45f6.firebaseio.com",
-    "storageBucket": "gtasos-e45f6.appspot.com"
-  }
-fireb = pyrebase.initialize_app(config)
+fireb = pyrebase.initialize_app(config.firebaseConf)
 db = fireb.database()
 
 if __name__ == '__main__':
