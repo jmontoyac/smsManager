@@ -3,14 +3,15 @@ from pyrebase import pyrebase
 from twilio.rest import Client
 from twilio.twiml.messaging_response import Body, Message, Redirect, MessagingResponse
 from time import sleep
-import Queue
 import config
 import pymongo
 import persistence as p
 import threading
+import uuid
+import queue
 
 # Variables definition
-commandQueue = Queue.Queue()
+commandQueue = queue.Queue()
 
 # Class to hold a message
 class message:
@@ -20,21 +21,45 @@ class message:
   #timeout = config.SMS_RESPONSE_TIMEOUT
   retried_times = 1
 
-# Execute when threading timer expires
+# Execute when threading toimer expires
 def timer_expired():
-  number = threading.currentThread().getName()
-  print("Timer for " + number + " expired in main thread")
-  # Check in DB if command was already answered
-  command_record = p.getRecord(number)
-  if (command_record.status == "ANSWERED"):
-    # Do nothing
-    print("Command already answered for number " + number)
+  id = threading.currentThread().getName()
+  status = p.getStatus(id)
+  retries = p.getRetries(id)
+  number = p.getDestination(id)
+  print("Timer " + id + " expired in main thread")
+  print("command Status in timer expired: " + status)
+  print("command retries in timer expired: " + str(retries))
+  if (status == "ANSWERED"): 
+    print ("Command was answered and updated in FB, delete record from data base: ")
+    p.delete_record(id)
+    # Look for commands in PENDING status for the same number
+    pending = getPendingByNumber(number)
+    print(pending)
+    if (pending.count > 0):
+      for x in pending:
+        pendingId = x["command_id"]
+      p.updateStatus(pendingId, "SENT")
+      print("Sending pending command for: number")
+      timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
+      timer.setName(id)
+      timer.start()
 
-  # If command in DB is still INITIAL, send again, put command again in FB
-  # and increment retries counter, change status to RETRYING
-  # If retries are reached, update command in FB with status FAILED
-  if (command_record.status == "INITIAL"):
-    p.updateStatus(number, "RETRYING")
+  elif (status == "SENT"):
+    print("Command not yet answered")
+    if(retries <= config.SMS_RETRIES):
+      retries += 1
+      p.updateRetries(id, retries)
+      print("Send command again, attempt #: " + str(retries))
+      timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
+      timer.setName(id)
+      timer.start()
+    else:
+      print("Message retries reached, answer to FB with FAILED status")
+      p.updateStatus(id, "FAILED")
+      p.delete_record(id)
+        # Update status FAILED on Firebase, then delete the record
+        # FB update with FAILED status
 
 
   # if ANSWERED of FAILED, check for PENDING records for the same number
@@ -58,7 +83,7 @@ def sendmsg(num,msg):
 
          message = client.messages.create(
                to=n,
-               config.messaging_service_sid,
+               messaging_service_sid = config.messaging_service_sid,
                body=msg)
 
 
@@ -74,24 +99,23 @@ def sendMessage(num,msg):
       m = message()
       m.destination = num
       m.contents = msg
-      command_queue.put(m)
+      m.status = "SENT"
+      #command_queue.put(m)
       p.storeCommand(m)
+
+      # Send message to twilio
+       #message = client.messages.create(
+             #to=n,
+             #messaging_service_sid = config.messaging_service_sid,
+             #body=msg)
 
       timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
       timer.setName(m.destination)
       timer.start()
       print("Timer started for message to: " + num)
 
-       # Send message to twilio
-       #message = client.messages.create(
-             #to=n,
-             #config.messaging_service_sid,
-             #body=msg)
-
-
-
-
-
+       
+# Initialize Firebase connection
 fireb = pyrebase.initialize_app(config.firebaseConf)
 db = fireb.database()
 
@@ -112,9 +136,16 @@ def stream_handler(message):
         comando=data["command"]
         status=data["status"]
         print('comando:' + comando + 'status: ' + status)
-        if (status == 'INITIAL' or status == 'RETRYING'):
-            #sendmsg(numero, comando)
-            sendMessage(numero, m,comando)
+        # if number foun in db, create new record wuth command and status = PENDING
+        # else add command to queue
+        record = p.getRecordByNumber(m.destination)
+        if (record.count() > 0):
+          print("Storing PENDING command for number: " + m.destination)
+          m.status = "PENDING"
+          p.storeCommand(m)
+        elif (status == 'INITIAL'):
+          #sendmsg(numero, comando)
+          sendMessage(numero, comando)
 
     elif (message["event"] == "put" and message["data"]):
         numero=message["data"]["number"]
