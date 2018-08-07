@@ -5,9 +5,39 @@ from twilio.twiml.messaging_response import Body, Message, Redirect, MessagingRe
 from time import sleep
 import Queue
 import config
+import pymongo
+import persistence as p
+import threading
 
 # Variables definition
 commandQueue = Queue.Queue()
+
+# Class to hold a message
+class message:
+  destination = ""
+  contents = ""
+  status = "INITIAL"
+  #timeout = config.SMS_RESPONSE_TIMEOUT
+  retried_times = 1
+
+# Execute when threading timer expires
+def timer_expired():
+  number = threading.currentThread().getName()
+  print("Timer for " + number + " expired in main thread")
+  # Check in DB if command was already answered
+  command_record = p.getRecord(number)
+  if (command_record.status == "ANSWERED"):
+    # Do nothing
+    print("Command already answered for number " + number)
+
+  # If command in DB is still INITIAL, send again, put command again in FB
+  # and increment retries counter, change status to RETRYING
+  # If retries are reached, update command in FB with status FAILED
+  if (command_record.status == "INITIAL"):
+    p.updateStatus(number, "RETRYING")
+
+
+  # if ANSWERED of FAILED, check for PENDING records for the same number
 
 def sendmsgresp(num,msg):
     if (num != ''):
@@ -32,6 +62,36 @@ def sendmsg(num,msg):
                body=msg)
 
 
+# Send message to SMS Gateway, do not check or change command message status
+# status and retries counter are checked when timer expires only
+def sendMessage(num,msg):
+  if (num != ''):
+    nums=num.split(',')
+    for n in nums:
+      client = Client(config.account_sid, config.auth_token)
+      print("numero dispositivo: " + num)
+      # Store command message object in DB
+      m = message()
+      m.destination = num
+      m.contents = msg
+      command_queue.put(m)
+      p.storeCommand(m)
+
+      timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
+      timer.setName(m.destination)
+      timer.start()
+      print("Timer started for message to: " + num)
+
+       # Send message to twilio
+       #message = client.messages.create(
+             #to=n,
+             #config.messaging_service_sid,
+             #body=msg)
+
+
+
+
+
 fireb = pyrebase.initialize_app(config.firebaseConf)
 db = fireb.database()
 
@@ -41,21 +101,21 @@ def stream_handler(message):
 
     # Add command to queue
 
-
-
     if (message["event"] == "put" and message["path"] == "/"):
       for command in message["data"]:
-        print('data command: {d}'.format(d=command))
+        #print('data command: {d}'.format(d=command))
         data = message["data"][command]
-        print('datos: {0}',data)
+        #print('datos: {0}',data)
         for key,val in data.items():
           print(key, "=>", val)
         numero=data["number"]
         comando=data["command"]
         status=data["status"]
         print('comando:' + comando + 'status: ' + status)
-        if (status == 'INITIAL'):
-            sendmsg(numero, comando)
+        if (status == 'INITIAL' or status == 'RETRYING'):
+            #sendmsg(numero, comando)
+            sendMessage(numero, m,comando)
+
     elif (message["event"] == "put" and message["data"]):
         numero=message["data"]["number"]
         comando=message["data"]["command"]

@@ -2,6 +2,8 @@ from flask import Flask, request
 from twilio.twiml.messaging_response import Message, MessagingResponse 
 from pyrebase import pyrebase
 import config
+import pymongo
+import persistence as p
 
 app = Flask(__name__)
  
@@ -20,6 +22,10 @@ def saveResponse(num,resp):
           data['response']=resp
           data['status']='ANSWERED'
           print('Data ' +str(data))
+          # JEMC
+          # Update smsManager database with status ANSWERED for this message
+          p.updateStatus(num,"ANSWERED")
+
           db.child("Commands").child(k).update(data)
 
 @app.route('/sms', methods=['POST'])
