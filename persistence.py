@@ -10,7 +10,7 @@ def storeCommand(msg):
 	mycol = mydb["commands"]
 	myDictionary = {"destination": msg.destination, "message": msg.contents,
 					"status": msg.status, "retries": msg.retried_times,
-					"command_id": msg.command_id}
+					"command_id": msg.command_id, "firebase_key": msg.firebase_key}
 
 	# TODO check if number is already in DB and store with status = PENDING
 	insert_result = mycol.insert_one(myDictionary)
@@ -107,3 +107,12 @@ def getRecordByNumber(number):
 	myQuery = {"destination": number}
 	myDoc = mycol.find(myQuery)
 	return myDoc
+
+# Get firebase key
+def getfirebase_key(id):
+	mycol = mydb["commands"]
+	myQuery = {"command_id": id}
+	myDoc = mycol.find(myQuery)
+	for x in myDoc:
+		fb_id = x["firebase_key"]
+	return fb_id
