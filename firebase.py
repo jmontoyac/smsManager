@@ -20,6 +20,7 @@ class mensaje_class:
   status = "INITIAL"
   retried_times = 1
   command_id = ""
+  firebase_key = ""
 
 # Execute when threading toimer expires
 def timer_expired():
@@ -60,6 +61,9 @@ def timer_expired():
       p.delete_record(id)
       # Update status FAILED on Firebase, then delete the record
       # FB update with FAILED status
+      data = {"number": number,
+              "status": "FAILED"}
+      #db.child("Commands").
 
 
   # if ANSWERED of FAILED, check for PENDING records for the same number
@@ -105,10 +109,10 @@ def sendMessage(num,msg):
       p.storeCommand(m)
 
       # Send message to twilio
-       #message = client.messages.create(
-             #to=n,
-             #messaging_service_sid = config.messaging_service_sid,
-             #body=msg)
+      message = client.messages.create(
+              to=n,
+              messaging_service_sid = config.messaging_service_sid,
+              body=msg)
 
       timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
       timer.setName(m.destination)
@@ -126,6 +130,7 @@ def stream_handler(message):
 
     if (message["event"] == "put" and message["path"] == "/"):
       for command in message["data"]:
+        print("Command JEMC: " + command)
         data = message["data"][command]
         for key,val in data.items():
           print(key, "=>", val)
