@@ -22,10 +22,8 @@ def saveResponse(num,resp):
           data['response']=resp
           data['status']='ANSWERED'
           print('Data ' +str(data))
-          # JEMC
           # Update smsManager database with status ANSWERED for this message
           p.updateStatus(num,"ANSWERED")
-
           db.child("Commands").child(k).update(data)
 
 @app.route('/sms', methods=['POST'])
@@ -34,7 +32,6 @@ def sms():
     message_body = request.form['Body']
     print('mensaje: '+message_body) 
     resp = MessagingResponse()
-    #resp.message('Hello {}, you said: {}'.format(number, message_body))
     saveResponse(number,message_body)
     return str(resp)
 @app.route('/sms',methods=['GET'])

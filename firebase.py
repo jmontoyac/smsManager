@@ -14,12 +14,12 @@ import queue
 commandQueue = queue.Queue()
 
 # Class to hold a message
-class message:
+class mensaje_class:
   destination = ""
   contents = ""
   status = "INITIAL"
-  #timeout = config.SMS_RESPONSE_TIMEOUT
   retried_times = 1
+  command_id = ""
 
 # Execute when threading toimer expires
 def timer_expired():
@@ -58,8 +58,8 @@ def timer_expired():
       print("Message retries reached, answer to FB with FAILED status")
       p.updateStatus(id, "FAILED")
       p.delete_record(id)
-        # Update status FAILED on Firebase, then delete the record
-        # FB update with FAILED status
+      # Update status FAILED on Firebase, then delete the record
+      # FB update with FAILED status
 
 
   # if ANSWERED of FAILED, check for PENDING records for the same number
@@ -96,10 +96,11 @@ def sendMessage(num,msg):
       client = Client(config.account_sid, config.auth_token)
       print("numero dispositivo: " + num)
       # Store command message object in DB
-      m = message()
+      m = mensaje_class()
       m.destination = num
       m.contents = msg
       m.status = "SENT"
+      m.command_id = str(uuid.uuid4())
       #command_queue.put(m)
       p.storeCommand(m)
 
@@ -123,28 +124,27 @@ def stream_handler(message):
     print('event={m[event]}; path={m[path]}; data={m[data]}'
         .format(m=message))
 
-    # Add command to queue
-
     if (message["event"] == "put" and message["path"] == "/"):
       for command in message["data"]:
-        #print('data command: {d}'.format(d=command))
         data = message["data"][command]
-        #print('datos: {0}',data)
         for key,val in data.items():
           print(key, "=>", val)
         numero=data["number"]
         comando=data["command"]
         status=data["status"]
+        msg=mensaje_class()
+        msg.destination = str(numero)
+        msg.contents = comando
+        msg.command_id = str(uuid.uuid4())
         print('comando:' + comando + 'status: ' + status)
-        # if number foun in db, create new record wuth command and status = PENDING
+        # if number found in db, create new record wuth command and status = PENDING
         # else add command to queue
-        record = p.getRecordByNumber(m.destination)
+        record = p.getRecordByNumber(msg.destination)
         if (record.count() > 0):
-          print("Storing PENDING command for number: " + m.destination)
-          m.status = "PENDING"
-          p.storeCommand(m)
+          print("Storing PENDING command for number: " + msg.destination)
+          msg.status = "PENDING"
+          p.storeCommand(msg)
         elif (status == 'INITIAL'):
-          #sendmsg(numero, comando)
           sendMessage(numero, comando)
 
     elif (message["event"] == "put" and message["data"]):
