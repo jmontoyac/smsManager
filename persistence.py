@@ -116,3 +116,10 @@ def getfirebase_key(id):
 	for x in myDoc:
 		fb_id = x["firebase_key"]
 	return fb_id
+
+# Get sent by number
+def getSentByNumber(number):
+	mycol = mydb["commands"]
+	myQuery = {"destination": number, "status": "SENT"}
+	myDoc = mycol.find(myQuery)
+	return myDoc
