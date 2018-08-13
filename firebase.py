@@ -73,7 +73,7 @@ def timer_expired():
       # Look for commands in PENDING status for the same number
       pending = p.getPendingByNumber(number)
       print(pending)
-      if (pending.count > 0):
+      if (pending.count() > 0):
         for x in pending:
           pendingId = x["command_id"]
         p.updateStatus(pendingId, "SENT")
