@@ -64,8 +64,18 @@ def getDestination(id):
 	myQuery = {"command_id": id}
 	myDoc = mycol.find(myQuery)
 	for x in myDoc:
-		status = x["destination"]
-	return status
+		destination = x["destination"]
+	return destination
+
+# Get message by id, returns string
+def getMessageById(id):
+        mycol = mydb["commands"]
+        myQuery = {"command_id": id}
+        myDoc = mycol.find(myQuery)
+        for x in myDoc:
+                message = x["contents"]
+        return message
+
 
 # Get status, returns string
 def getPendingByNumber(number):
@@ -109,7 +119,7 @@ def getRecordByNumber(number):
 	return myDoc
 
 # Get firebase key
-def getfirebase_key(id):
+def getFirebase_key(id):
 	mycol = mydb["commands"]
 	myQuery = {"command_id": id}
 	myDoc = mycol.find(myQuery)

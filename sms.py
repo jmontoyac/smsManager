@@ -23,8 +23,10 @@ def saveResponse(num,resp):
           data['status']='ANSWERED'
           print('Data ' +str(data))
           # Update smsManager database with status ANSWERED for this message
-          p.updateStatus(num,"ANSWERED")
-          db.child("Commands").child(k).update(data)
+          sent = p.getSentByNumber(data["number"])
+          if (sent.count() > 0):
+              p.updateStatus(num,"ANSWERED")
+              db.child("Commands").child(k).update(data)
 
 @app.route('/sms', methods=['POST'])
 def sms():
@@ -32,6 +34,8 @@ def sms():
     message_body = request.form['Body']
     print('mensaje: '+message_body) 
     resp = MessagingResponse()
+    print("Respuesta: " + str(resp))
+    #resp.message('Hello {}, you said: {}'.format(number, message_body))
     saveResponse(number,message_body)
     return str(resp)
 @app.route('/sms',methods=['GET'])
