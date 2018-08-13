@@ -73,7 +73,7 @@ def getMessageById(id):
         myQuery = {"command_id": id}
         myDoc = mycol.find(myQuery)
         for x in myDoc:
-                message = x["contents"]
+                message = x["message"]
         return message
 
 
