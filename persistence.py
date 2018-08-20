@@ -1,8 +1,10 @@
 import pymongo
+import logger
 
 # Database connection
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["sosDatabase"]
+log = logger.logging.getLogger('sos.persistence')
 
 
 # Store command to database
@@ -15,6 +17,7 @@ def storeCommand(msg):
 	# TODO check if number is already in DB and store with status = PENDING
 	insert_result = mycol.insert_one(myDictionary)
 	print ("DB inserted " + msg.destination + " message: " + msg.contents + str(msg.command_id))
+	log.debug("DB inserted " + msg.destination + " message: " + msg.contents + str(msg.command_id))
 
 # List the records in database
 def listCommands():
@@ -40,6 +43,7 @@ def delete_record(id):
 		command = x["message"]
 	mycol.delete_one(myQuery)
 	print("Deleted record for: " + number + " message: " + command) 
+	log.debug("Deleted record for: " + number + " message: " + command)
 
 # Update status value
 def updateStatus(id, status):
@@ -48,6 +52,7 @@ def updateStatus(id, status):
 	newValue = {"$set": {"status": status}}
 	mycol.update_one(myQuery, newValue)
 	print("Updated " + id + " with new status: " + status)
+	log.debug("Updated " + id + " with new status: " + status)
 
 # Get status, returns string
 def getStatus(id):
@@ -91,6 +96,7 @@ def updateRetries(id, num_retries):
 	newValue = {"$set": {"retries": num_retries}}
 	mycol.update_one(myQuery,newValue)
 	print("Updated " + id + " with new retries value: " + str(num_retries))
+	log.debug("Updated " + id + " with new retries value: " + str(num_retries))
 
 # Get retries, returns int
 def getRetries(id):
