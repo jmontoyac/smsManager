@@ -9,9 +9,11 @@ import persistence as p
 import threading
 import uuid
 import queue
+import logger
 
 # Variables definition
 commandQueue = queue.Queue()
+log = logger.logging.getLogger('sos.FireBase')
 
 # Class to hold a message
 class mensaje_class:
@@ -25,6 +27,7 @@ class mensaje_class:
 # Execute when threading toimer expires
 def timer_expired():
   print("Timer expired")
+  log.debug("Timer expired")
   id = threading.currentThread().getName()
   status = p.getStatus(id)
   retries = p.getRetries(id)
@@ -34,17 +37,24 @@ def timer_expired():
   print("Timer " + id + " expired in main thread")
   print("command Status in timer expired: " + status)
   print("command retries in timer expired: " + str(retries))
+  log.debug("For command id: " + str(id))
+  log.debug("For number: " + number)
+  log.debug("Timer " + id + " expired in main thread")
+  log.debug("command Status in timer expired: " + status)
+  log.debug("command retries in timer expired: " + str(retries))
   if (status == "ANSWERED"): 
     print ("Command was answered and updated in FB, delete record from data base: ")
+    log.debug("Command was answered and updated in FB, delete record from data base: ")
     p.delete_record(id)
     # Look for commands in PENDING status for the same number
-    pending = getPendingByNumber(number)
+    pending = p.getPendingByNumber(number)
     print(pending)
-    if (pending.count > 0):
+    if (pending.count() > 0):
       for x in pending:
         pendingId = x["command_id"]
       p.updateStatus(pendingId, "SENT")
       print("Sending pending command for: " +number)
+      log.debug("Sending pending command for: " +number)
       sendToGateway(p.getDestination(pendingId), p.getMessageById(pendingId))
       timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
       timer.setName(pendingId)
@@ -52,16 +62,19 @@ def timer_expired():
 
   elif (status == "SENT"):
     print("Command not yet answered")
+    log.debug("Command not yet answered")
     if(retries <= config.SMS_RETRIES):
       retries += 1
       p.updateRetries(id, retries)
       print("Send command again, attempt #: " + str(retries))
+      log.debug("Send command again, attempt #: " + str(retries))
       sendToGateway(p.getDestination(id), p.getMessageById(id))
       timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
       timer.setName(id)
       timer.start()
     else:
       print("Message retries reached, answer to FB with FAILED status")
+      log.debug("Message retries reached, answer to FB with FAILED status")
       p.updateStatus(id, "FAILED")
       
       # Update status FAILED on Firebase, then delete the record
@@ -78,6 +91,7 @@ def timer_expired():
           pendingId = x["command_id"]
         p.updateStatus(pendingId, "SENT")
         print("Sending pending command for: " +number)
+        log.debug("Sending pending command for: " +number)
         sendToGateway(p.getDestination(pendingId), p.getMessageById(pendingId))
         timer = threading.Timer(config.SMS_RESPONSE_TIMEOUT, timer_expired)
         timer.setName(pendingId)
@@ -112,6 +126,7 @@ def sendmsg(num, mensaje, firebase_key):
        nums=num.split(',')
        for n in nums:
          print("numero dispositivo: " + num)
+         log.debug("Numero de dispositivo: " + num)
          m=mensaje_class()
          m.destination = str(n)
          m.contents = mensaje
@@ -125,6 +140,7 @@ def sendmsg(num, mensaje, firebase_key):
          timer.setName(m.command_id)
          timer.start()
          print("sendmsg::Timer started for message to: " + num)
+         log.debug("sendmsg::Timer started for message to: " + num)
 
 
 # Send message to SMS Gateway, do not check or change command message status
@@ -134,6 +150,7 @@ def sendMessage(num,msg,firebase_key):
     nums=num.split(',')
     for n in nums:
       print("numero dispositivo: " + num)
+      log.debug("numero dispositivo: " + num)
       # Store command message object in DB
       m = mensaje_class()
       m.destination = num
@@ -149,10 +166,12 @@ def sendMessage(num,msg,firebase_key):
       timer.setName(m.command_id)
       timer.start()
       print("sendMessage::Timer started for message to: " + num)
+      log.debug("sendMessage::Timer started for message to: " + num)
 
 # This method sends the alert to a tracker device
 def sendAlert(num, mensaje):
     print("ALERT sent to number: " + num)
+    log.debug("ALERT sent to number: " + num)
     sendToGateway(num, mensaje)
          
 
@@ -167,6 +186,7 @@ def stream_handler(message):
     if (message["event"] == "put" and message["path"] == "/"):
       for command in message["data"]:
         print("Command JEMC1: " + command)
+        log.debug("Command JEMC1: " + command)
         data = message["data"][command]
         for key,val in data.items():
           print(key, "=>", val)
@@ -176,6 +196,7 @@ def stream_handler(message):
         firebase_key = command
         
         print('comando:' + comando + 'status: ' + status)
+        log.debug('comando:' + comando + 'status: ' + status)
         # if number found in db, create new record with command and status = PENDING
         # else add command to queue
         record = p.getRecordByNumber(numero)
@@ -185,6 +206,7 @@ def stream_handler(message):
           update_firebase(firebase_key, data)
         elif (record.count() > 0):
           print("Storing PENDING command for number: " + numero)
+          log.debug("Storing PENDING command for number: " + numero)
           msg=mensaje_class()
           msg.destination = str(numero)
           msg.contents = comando
@@ -199,17 +221,31 @@ def stream_handler(message):
         numero=message["data"]["number"]
         comando=message["data"]["command"]
         status=message["data"]["status"]
+        record = p.getRecordByNumber(numero)
         # Get firebase key from path, remove the "/"
         path =  message["path"]
         firebase_key = path[1:]
         print("JEMC2 firebase_key: " + firebase_key)
+        log.debug("JEMC2 firebase_key: " + firebase_key)
         if (status == "ALERT"):
           sendAlert(numero,comando)
           data = {"status": "ANSWERED"}
           update_firebase(firebase_key, data)
-        else:
+        elif (record.count() > 0):
+          print("Storing PENDING command for number: " + numero)
+          log.debug("Storing PENDING command for number: " + numero)
+          msg=mensaje_class()
+          msg.destination = str(numero)
+          msg.contents = comando
+          msg.command_id = str(uuid.uuid4())
+          msg.firebase_key = firebase_key
+          msg.status = "PENDING"
+          p.storeCommand(msg)
+        elif (status == 'INITIAL'):
           print('Command JEMC2:' + comando)
+          log.debug('Command JEMC2:' + comando)
           print("Status from firebase: " + status)
+          log.debug("Status from firebase: " + status)
 
           sendmsg(numero, comando, firebase_key)
           if (comando.endswith("lock")):
